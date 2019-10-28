@@ -1,9 +1,8 @@
 # ------------------------------ Import Data ---------------------------------
 
 data <- read.csv("/Users/amine/Desktop/Buisiness-Intelligence--master/DBLP_Subset.txt",header = F, stringsAsFactors=FALSE,quote = "")
-# train = data.frame(data[1:1000,1])
+
 # ------------------------------ Create Table  ---------------------------------
-#data <- data.frame(data[1:20000,])
 table <- data.frame()
 line <- c("","","","","~~","")
 
@@ -44,10 +43,12 @@ for(i in data[,1]){
 }
 
 table <- table[-1,]
+table <- table[!(table$Review == ""), ]
 table$Title <- levels(table$Title)[as.numeric(table$Title)]
 table$Review <- levels(table$Review)[as.numeric(table$Review)]
 table$Author <- levels(table$Author)[as.numeric(table$Author)]
 table$Citations <- levels(table$Citations)[as.numeric(table$Citations)]
+table$article_id <- levels(table$article_id)[as.numeric(table$article_id)]
 #Remove dot at the end of the title
 table$Title = gsub("[.]","",table$Title)
 
@@ -57,19 +58,31 @@ citation_table <- as.data.frame(table(citations))
 colnames(citation_table) <- c("Citations","Citations_count")
 table = merge(table, citation_table, by.x = "Citations", by.y = "Citations",all.x = TRUE)
 table[is.na(table)] <- 0
+
 # ------------------------- Create Document/Tern Matrix ------------------------------
 library("tm")
 corpus <- Corpus(VectorSource(table$Title))
-tdm <- TermDocumentMatrix(corpus)
-docTerm <- as.data.frame(t(as.matrix(tdm)))
+dtm <- removeSparseTerms(DocumentTermMatrix(corpus),0.99)
+docTerm <- as.data.frame(as.matrix(dtm))
+table$id <- 1:nrow(table)
 docTerm$id <- 1:nrow(docTerm)
+docTerm = merge(docTerm,table, by = "id")
+remove <- c("id","Title","Author","Year","Review","Citations")
+docTerm <- docTerm[, -which(names(docTerm) %in% remove)]
+
+table <- table[, -which(names(table) %in% "id")]
+
+
+# Create Tern/document Matrix ------------------------------
+tdm <- removeSparseTerms(TermDocumentMatrix(corpus),0.99)
+termDoc <- as.data.frame(as.matrix(tdm))
 
 #echantillon 1.5K
-train = table[1:1500,]
-corpus <- Corpus(VectorSource(train$Title))
-tdm <- TermDocumentMatrix(corpus)
-docTerm_train <- as.data.frame(t(as.matrix(tdm)))
-docTerm_train$id <- 1:nrow(docTerm_train)
+# train = table[1:1500,]
+# corpus <- Corpus(VectorSource(train$Title))
+# tdm <- TermDocumentMatrix(corpus)
+# docTerm_train <- as.data.frame(t(as.matrix(tdm)))
+# docTerm_train$id <- 1:nrow(docTerm_train)
   
 # ------------------------- Create Authors Matrix ------------------------------
 
@@ -83,23 +96,34 @@ authors <- data.frame("author_name" = authors)
 authors$id = seq.int(nrow(authors))
 
 #Merge with #Publications
-authors <- unlist(strsplit(train$Author," , "))
-authors_pub <- as.data.frame(table(authors))
-colnames(aut) <- c("author_name","Count")
-dd = merge(train,citation_table,by = "author_name")
+authors_ <- unlist(strsplit(table$Author," , "))
+authors_pub <- as.data.frame(table(authors_))
+colnames(authors_pub) <- c("author_name","Count")
+authors = merge(authors,authors_pub, by = "author_name")
 # ------------------------- Export Tables ------------------------------
 
-write.csv(authors,"Athors.csv",row.names = F)
-write.csv(table,"Table.csv",row.names = F)
-write.csv(docTerm,"DocumentTerm.csv",row.names = F)
+termFreq <- as.data.frame(rowSums(as.matrix(tdm)))
+colnames(termFreq) <- c("Frequence")
+
+
+write.csv(authors,"tables/Athors.csv",row.names = F)
+write.csv(table,"tables/Table.csv",row.names = F)
+write.csv(docTerm,"tables/DocumentTerm.csv",row.names = F)
+write.csv(termFreq,"tables/TermFrequency.csv",row.names = T)
+
+termDoc
 
 #############
 
-write.csv(authors,"train/Athors.csv",row.names = F)
-write.csv(train,"train/Table.csv",row.names = F)
-write.csv(docTerm_train,"train/DocumentTerm.csv",row.names = F)
+# write.csv(authors,"train/Athors.csv",row.names = F)
+# write.csv(train,"train/Table.csv",row.names = F)
+# write.csv(docTerm_train,"train/DocumentTerm.csv",row.names = F)
 
+# ------------------------- Clustering ------------------------------
 
+clustering <- as.data.frame(kmeans(docTerm, 10)$cluster)
+names(clustering) <- "Cluster"
 
-
-
+library(igraph)
+fastgreedy.community(graph(as.matrix(docTerm)))
+graph(as.matrix(docTerm))
