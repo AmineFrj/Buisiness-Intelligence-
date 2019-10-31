@@ -19,7 +19,7 @@ for(i in data[,1]){
     line[4] = substr(i,3,nchar(i))
   }
   else if(startsWith(i,"#c")){
-    line[5] = substr(i,7,nchar(i))
+    line[5] = substr(i,3,nchar(i))
   }
   else if(startsWith(i,"#i")){
     line[1] = substr(i,7,nchar(i))
