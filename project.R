@@ -5,7 +5,7 @@ data <- read.delim("/Users/amine/Desktop/Buisiness-Intelligence--master/DBLP_Sub
 # ------------------------------ Create Table  ---------------------------------
 table <- data.frame()
 line <- c("","","","","~~","","")
-copie = table
+
 for(i in data[,1]){
   if(startsWith(i,"#*")){
     table <- rbind(table, data.frame("Article_id" = line[1],"Title" = line[2],"Author" = line[3],"Year" = line[4],"Venue" = line[5],"Citations" = line[6], "Abstract" = line[7]))
@@ -41,6 +41,8 @@ for(i in data[,1]){
       line[7] = paste(line[7],"",i)
   }
 }
+
+copie = data.frame(table)
 
 table <- table[-1,]
 table <- table[!(table$Abstract == "~~"), ]
@@ -89,17 +91,17 @@ termDoc <- as.data.frame(as.matrix(tdm))
 
 authors <- c()
 for (i in table$Author)
-  for (j in strsplit(i, " , "))
+  for (j in strsplit(i, ","))
     authors <- append(authors,j)
-  
-authors <- unique(authors)
-authors <- data.frame("author_name" = authors)
+
+authors <- unique(trimws(authors))
+authors <- data.frame("author_name" = (authors))
 authors$author_name <- levels(authors$author_name)[as.numeric(authors$author_name)]
 authors$id = seq.int(nrow(authors))
 
 #Merge with #Publications
-authors_ <- unlist(strsplit(table$Author," , "))
-authors_pub <- as.data.frame(table(authors_))
+authors_ <- unlist(strsplit(table$Author,","))
+authors_pub <- as.data.frame(table(trimws(authors_)))
 colnames(authors_pub) <- c("author_name","Count")
 authors = merge(authors,authors_pub, by = "author_name")
 
@@ -169,9 +171,3 @@ plot(g, layout=layout1)
 
 
 table[(table$Abstract == "~~"),"Venue"]
-
-
-
-
-
-
