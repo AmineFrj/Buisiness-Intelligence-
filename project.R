@@ -1,15 +1,15 @@
 # ------------------------------ Import Data ---------------------------------
 
-data <- read.csv("/Users/amine/Desktop/Buisiness-Intelligence--master/DBLP_Subset.txt",header = F, stringsAsFactors=FALSE,quote = "")
+data <- read.delim("/Users/amine/Desktop/Buisiness-Intelligence--master/DBLP_Subset.txt",header = F, stringsAsFactors=FALSE,quote = "")
 
 # ------------------------------ Create Table  ---------------------------------
 table <- data.frame()
-line <- c("","","","","~~","")
-
+line <- c("","","","","~~","","")
+copie = table
 for(i in data[,1]){
   if(startsWith(i,"#*")){
-    table <- rbind(table, data.frame("article_id" = line[1],"Title" = line[2],"Author" = line[3],"Year" = line[4],"Review" = line[5],"Citations" = line[6]))
-    line = c("","","","","~~","")
+    table <- rbind(table, data.frame("Article_id" = line[1],"Title" = line[2],"Author" = line[3],"Year" = line[4],"Venue" = line[5],"Citations" = line[6], "Abstract" = line[7]))
+    line = c("","","","","","","~~")
     line[2] = substr(i,3,nchar(i))
   }
   else if(startsWith(i,"#@")){
@@ -31,21 +31,22 @@ for(i in data[,1]){
       line[6] = paste(line[6],",",substr(i,3,nchar(i)))
   }
   else if(startsWith(i,"#!")){
-    line[5] = substr(i,3,nchar(i))
+    line[7] = substr(i,3,nchar(i))
   }
   else {
-    if(startsWith(line[5],"~~")){
+    if(startsWith(line[7],"~~")){
       line[3] = paste(line[3],",",i)
     }
     else 
-      line[5] = paste(line[5],"",i)
+      line[7] = paste(line[7],"",i)
   }
 }
 
 table <- table[-1,]
-table <- table[!(table$Review == ""), ]
+table <- table[!(table$Abstract == "~~"), ]
 table$Title <- levels(table$Title)[as.numeric(table$Title)]
-table$Review <- levels(table$Review)[as.numeric(table$Review)]
+table$Venue <- levels(table$Venue)[as.numeric(table$Venue)]
+table$Abstract <- levels(table$Abstract)[as.numeric(table$Abstract)]
 table$Author <- levels(table$Author)[as.numeric(table$Author)]
 table$Citations <- levels(table$Citations)[as.numeric(table$Citations)]
 table$article_id <- levels(table$article_id)[as.numeric(table$article_id)]
@@ -67,13 +68,13 @@ docTerm <- as.data.frame(as.matrix(dtm))
 table$id <- 1:nrow(table)
 docTerm$id <- 1:nrow(docTerm)
 docTerm = merge(docTerm,table, by = "id")
-remove <- c("id","Title","Author","Year","Review","Citations")
+remove <- c("id","Title","Author","Year","Venue","Citations","Abstract")
 docTerm <- docTerm[, -which(names(docTerm) %in% remove)]
 
 table <- table[, -which(names(table) %in% "id")]
+docTerm$Article_id <- levels(docTerm$Article_id)[as.numeric(docTerm$Article_id)]
 
-
-# Create Tern/document Matrix ------------------------------
+# Create Term/document Matrix ------------------------------
 tdm <- removeSparseTerms(TermDocumentMatrix(corpus),0.99)
 termDoc <- as.data.frame(as.matrix(tdm))
 
@@ -93,6 +94,7 @@ for (i in table$Author)
   
 authors <- unique(authors)
 authors <- data.frame("author_name" = authors)
+authors$author_name <- levels(authors$author_name)[as.numeric(authors$author_name)]
 authors$id = seq.int(nrow(authors))
 
 #Merge with #Publications
@@ -100,11 +102,11 @@ authors_ <- unlist(strsplit(table$Author," , "))
 authors_pub <- as.data.frame(table(authors_))
 colnames(authors_pub) <- c("author_name","Count")
 authors = merge(authors,authors_pub, by = "author_name")
+
 # ------------------------- Export Tables ------------------------------
 
 termFreq <- as.data.frame(rowSums(as.matrix(tdm)))
 colnames(termFreq) <- c("Frequence")
-
 
 write.csv(authors,"tables/Athors.csv",row.names = F)
 write.csv(table,"tables/Table.csv",row.names = F)
@@ -113,11 +115,11 @@ write.csv(termFreq,"tables/TermFrequency.csv",row.names = T)
 
 termDoc
 
-#############
+# ------------------------- Select Venues ------------------------------
 
-# write.csv(authors,"train/Athors.csv",row.names = F)
-# write.csv(train,"train/Table.csv",row.names = F)
-# write.csv(docTerm_train,"train/DocumentTerm.csv",row.names = F)
+SIGIR <- table[startsWith(table$Venue,"SIGIR"), ]
+SIGMOD <- table[startsWith(table$Venue,"SIGMOD"), ]
+STOC <- table[startsWith(table$Venue,"STOC"), ]
 
 # ------------------------- Clustering ------------------------------
 
@@ -125,5 +127,51 @@ clustering <- as.data.frame(kmeans(docTerm, 10)$cluster)
 names(clustering) <- "Cluster"
 
 library(igraph)
-fastgreedy.community(graph(as.matrix(docTerm)))
-graph(as.matrix(docTerm))
+
+graph <- graph(as.matrix(docTerm),directed=F)
+fastgreedy.community(as.undirected(graph))
+
+community <- fastgreedy.community(g)
+community$membership
+
+
+
+g1 <- graph( edges=c(1,3, 2,3, 3, 1), n=3, directed=F ) 
+plot(g1,vertex.label=NA)
+
+
+
+termDocMatrix <- termDoc
+# change it to a Boolean matrix
+termDocMatrix[termDocMatrix>=1] <- 1
+# transform into a term-term adjacency matrix
+termMatrix <- as.matrix(termDocMatrix) %*% t(as.matrix(termDocMatrix))
+# inspect terms numbered 5 to 10
+termMatrix[5:10,5:10]
+
+library(igraph)
+# build a graph from the above matrix
+g <- graph.adjacency(termMatrix, weighted=T, mode = "undirected")
+# remove loops
+g <- simplify(g)
+
+g
+
+
+# set labels and degrees of vertices
+V(g)$label <- V(g)$name
+V(g)$degree <- degree(g)
+
+# set seed to make the layout reproducible
+set.seed(3952)
+layout1 <- layout.fruchterman.reingold(g)
+plot(g, layout=layout1)
+
+
+table[(table$Abstract == "~~"),"Venue"]
+
+
+
+
+
+
